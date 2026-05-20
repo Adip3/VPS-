@@ -1,0 +1,64 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vps_postgres
+    environment:
+      POSTGRES_DB: vps_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vps_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - vps_net
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vps_api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=vps_db;Username=postgres;Password=postgres"
+      Jwt__Key: "ChangeThisToASecureKeyInProductionAtLeast32Chars!"
+      Jwt__Issuer: "VPS"
+      Jwt__Audience: "VPS-Users"
+      Smtp__Host: "smtp.gmail.com"
+      Smtp__Port: "587"
+      Smtp__User: ""
+      Smtp__Pass: ""
+      Smtp__From: "noreply@vps.local"
+      Cors__Origin: "http://localhost"
+    ports:
+      - "5050:5050"
+    networks:
+      - vps_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: vps_frontend
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+    networks:
+      - vps_net
+
+volumes:
+  postgres_data:
+
+networks:
+  vps_net:
+    driver: bridge
